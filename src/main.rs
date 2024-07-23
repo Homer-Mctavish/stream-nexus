@@ -4,7 +4,11 @@ mod sneed_env; // naming it "env" can be confusing.
 mod web;
 
 use crate::web::ChatServer;
-
+use serde::{Deserialize, Serialize}; // for Deserialize;
+use surrealdb::engine::remote::ws::Ws;
+use surrealdb::Surreal;
+use surrealdb::opt::auth::Root;
+use surrealdb::sql::Thing;
 use actix::Actor;
 use actix_web::{App, HttpServer};
 use anyhow::Result;
