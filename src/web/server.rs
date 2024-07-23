@@ -17,6 +17,7 @@ pub struct ChatServer {
     pub chat_messages: HashMap<Uuid, ChatMessage>,
     pub paid_messages: Vec<Uuid>,
     pub exchange_rates: ExchangeRates,
+    pub viewer_counts: HashMap<String, usize>,
 }
 
 impl ChatServer {
@@ -28,6 +29,7 @@ impl ChatServer {
             chat_messages: HashMap::with_capacity(100),
             paid_messages: Vec::with_capacity(100),
             exchange_rates,
+            viewer_counts: HashMap::with_capacity(100),
         }
     }
 }
@@ -67,12 +69,52 @@ impl Handler<message::Connect> for ChatServer {
 impl Handler<message::Content> for ChatServer {
     type Result = ();
 
-    fn handle(&mut self, msg: message::Content, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, mut msg: message::Content, _: &mut Context<Self>) -> Self::Result {
         log::debug!("[ChatServer] {}", msg.chat_message.to_console_msg());
 
         let usd = self
             .exchange_rates
             .get_usd(&msg.chat_message.currency, &msg.chat_message.amount);
+
+        msg.chat_message.message = msg
+            .chat_message
+            .message
+            .replace("&", "&amp;")
+            .replace("\"", "&quot")
+            .replace("'", "&#039;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;");
+
+        // emojis = Vec<(String, String, String) where names are (find, replace, name)
+        let mut replacements: HashMap<usize, String> =
+            HashMap::with_capacity(msg.chat_message.emojis.len());
+        let mut replacement_string = msg.chat_message.message.to_owned();
+
+        // First, replace all instances with tokens.
+        for (find, replace, name) in &msg.chat_message.emojis {
+            let url = replace
+                .replace("&", "&amp;")
+                .replace("\"", "&quot")
+                .replace("'", "&#039;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+            let key: usize = rand::random();
+            let value: String = format!(
+                "<img class=\"emoji\" src=\"{}\" data-emoji=\"{}\" alt=\"{}\" />",
+                url, name, name
+            );
+            replacement_string = replacement_string.replace(find, &format!("<{}>", key));
+            replacements.insert(key, value);
+        }
+
+        // Replace tokens with real replacements.
+        for (key, value) in replacements {
+            replacement_string = replacement_string.replace(&format!("<{}>", key), &value);
+        }
+
+        // Finally, set new string.
+        // This stops double replacements.
+        msg.chat_message.message = replacement_string;
 
         let mut chat_msg = msg.chat_message;
         let id = chat_msg.id.to_owned();
@@ -81,7 +123,13 @@ impl Handler<message::Content> for ChatServer {
 
         // Send message to all clients.
         for (_, conn) in &self.clients {
-            conn.recipient.do_send(message::Reply(chat_msg.to_json()));
+            conn.recipient.do_send(message::Reply(
+                serde_json::to_string(&message::ReplyInner {
+                    tag: "chat_message".to_owned(),
+                    message: chat_msg.to_json(),
+                })
+                .expect("Failed to serialize chat message reply_inner."),
+            ));
         }
 
         if self.chat_messages.len() >= self.chat_messages.capacity() - 1 {
@@ -147,5 +195,30 @@ impl<'a> Handler<message::PaidMessages> for ChatServer {
         super_chats.sort_by_key(|msg| msg.received_at);
         log::debug!("Sending {} superchats.", super_chats.len());
         MessageResult(super_chats)
+    }
+}
+
+/// Handler for viewer counts.
+impl Handler<message::ViewCount> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, viewers: message::ViewCount, _: &mut Context<Self>) -> Self::Result {
+        if let Some(old) = self.viewer_counts.insert(viewers.platform, viewers.viewers) {
+            if old == viewers.viewers {
+                return;
+            }
+        }
+
+        for (_, conn) in &self.clients {
+            let new_viewers = self.viewer_counts.clone();
+            conn.recipient.do_send(message::Reply(
+                serde_json::to_string(&message::ReplyInner {
+                    tag: "viewers".to_owned(),
+                    message: serde_json::to_string(&new_viewers)
+                        .expect("Failed to serialize viewers."),
+                })
+                .expect("Failed to serialize viewers replyinner"),
+            ));
+        }
     }
 }

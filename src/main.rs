@@ -51,6 +51,7 @@ async fn main() -> Result<(), std::io::Error> {
             .service(web::colors)
             .service(web::chat)
             .service(web::dashboard)
+            .service(web::overlay)
             .service(web::websocket)
             .service(web::logo)
             .service(create_todo) 
@@ -59,7 +60,7 @@ async fn main() -> Result<(), std::io::Error> {
             .service(update_todo) 
             .service(delete_todo) 
     })
-    .workers(1)
+    //.workers(1)
     .bind(format!(
         "{}:{}",
         dotenvy::var("SERVER_IP").expect("SERVER_IP not defined."),
