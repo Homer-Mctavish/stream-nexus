@@ -179,3 +179,4 @@ impl Message {
         .expect("Failed to serialize chat message wrapper.")
     }
 }
+
