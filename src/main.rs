@@ -15,6 +15,7 @@ use surrealdb::engine::remote::ws::Ws;
 use surrealdb::opt::auth::Root;
 use surrealdb::sql::Id;
 use surrealdb::Surreal;
+use surrealdb::engine::remote::ws::Client;
 
 #[derive(Debug, Deserialize)]
 struct CustomThing {
@@ -29,7 +30,7 @@ struct Person {
 }
 
 struct SurrealDBData {
-    db: Surreal<Client>,
+    db: Surreal<Client>
 }
 
 impl SurrealDBData {
@@ -94,8 +95,8 @@ async fn main() -> Result<(), std::io::Error> {
             .service(web::overlay)
             .service(web::websocket)
             .service(web::logo)
-            .route("/", web::get().to(get_users))
-            .route("/user", web::post().to(create_user))
+            .route("/", other_web::get().to(get_users))
+            .route("/user", other_web::post().to(create_user))
     })
     .bind(format!(
         "{}:{}",
@@ -113,7 +114,7 @@ async fn get_users(db: other_web::Data<Mutex<Database>>) -> impl Responder {
     HttpResponse::Ok().json(users)
 }
 
-async fn create_user(db: other_web::Data<Mutex<Database>>, user: web::Json<NewUser>) -> impl Responder {
+async fn create_user(db: other_web::Data<Mutex<Database>>, user: other_web::Json<NewUser>) -> impl Responder {
     let db = db.lock().unwrap();
     let user = db.create_user(user.into_inner()).await;
     HttpResponse::Ok().json(user)
