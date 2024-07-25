@@ -5,10 +5,6 @@ mod web;
 mod db;
 
 use crate::web::ChatServer;
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
 use actix::Actor;
 use actix_web::{web as other_web, App, HttpServer, Responder, HttpResponse};
 use anyhow::Result;
