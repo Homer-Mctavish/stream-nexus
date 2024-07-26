@@ -5,6 +5,7 @@ use uuid::Uuid;
 use super::message;
 use crate::exchange::ExchangeRates;
 use crate::message::Message as ChatMessage;
+use crate::db::Database; // Add this line to import Database
 
 pub struct Connection {
     pub id: usize,
@@ -18,6 +19,7 @@ pub struct ChatServer {
     pub paid_messages: Vec<Uuid>,
     pub exchange_rates: ExchangeRates,
     pub viewer_counts: HashMap<String, usize>,
+    pub db: Database, // Add this field
 }
 
 impl ChatServer {
@@ -30,7 +32,7 @@ impl ChatServer {
             paid_messages: Vec::with_capacity(100),
             exchange_rates,
             viewer_counts: HashMap::with_capacity(100),
-        }
+       }
     }
 }
 
@@ -121,6 +123,13 @@ impl Handler<message::Content> for ChatServer {
         chat_msg.amount = usd;
         chat_msg.currency = "USD".to_string();
 
+        // Store the message in SurrealDB
+        let db = self.db.clone();
+        let chat_msg_clone = chat_msg.clone();
+        tokio::spawn(async move {
+            db.store_message(&chat_msg_clone).await;
+        });
+
         // Send message to all clients.
         for (_, conn) in &self.clients {
             conn.recipient.do_send(message::Reply(
@@ -164,6 +173,12 @@ impl<'a> Handler<message::RecentMessages> for ChatServer {
 
     fn handle(&mut self, _: message::RecentMessages, _: &mut Context<Self>) -> Self::Result {
         const MAX_MESSAGES: usize = 100;
+
+        let db = self.db.clone();
+        let recent_messages = tokio::spawn(async move {
+            db.get_recent_messages(MAX_MESSAGES).await
+        }).await.unwrap();
+
 
         let mut last_messages: Vec<ChatMessage> = if self.chat_messages.len() >= MAX_MESSAGES {
             self.chat_messages
