@@ -14,16 +14,16 @@ struct MessageTemplate<'a> {
 #[rtype(result = "()")]
 pub struct Message {
     pub id: Uuid,
-    pub platform: String,
     pub message: String,
+    pub received_at: NaiveDateTime,
+    pub amount: f64,
+    pub currency: String,
+    pub platform: String,
     pub emojis: Vec<(String, String, String)>,
     pub sent_at: i64,     // Display timestamp
-    pub received_at: i64, // Our system received timestamp
     pub username: String,
     pub avatar: String, // URL
     // Superchat
-    pub amount: f64,
-    pub currency: String,
     // Display
     pub is_verified: bool,
     pub is_sub: bool,

@@ -5,7 +5,8 @@ use uuid::Uuid;
 use super::message;
 use crate::exchange::ExchangeRates;
 use crate::message::Message as ChatMessage;
-use crate::db::Database; // Add this line to import Database
+
+use crate::db::Database; 
 
 pub struct Connection {
     pub id: usize,
@@ -25,6 +26,7 @@ pub struct ChatServer {
 impl ChatServer {
     pub fn new(exchange_rates: ExchangeRates) -> Self {
         log::info!("Chat actor starting up.");
+        
 
         Self {
             clients: HashMap::with_capacity(100),
@@ -32,6 +34,7 @@ impl ChatServer {
             paid_messages: Vec::with_capacity(100),
             exchange_rates,
             viewer_counts: HashMap::with_capacity(100),
+            db: Database::new(),
        }
     }
 }

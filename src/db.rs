@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::NaiveDateTime;
 use surrealdb::sql::Value;
+use crate::message::Message as ChatMessage;
+
 #[derive(Clone)]
 pub struct Database {
     client: Surreal<Client>,
@@ -49,25 +51,43 @@ impl Database {
         self.client.query(query.as_str()).await.unwrap();
     }
 
-    // Retrieves recent chat messages from the database
+   // Retrieves recent chat messages from the database
     pub async fn get_recent_messages(&self, max_messages: usize) -> Vec<ChatMessage> {
         let query = format!("SELECT * FROM message ORDER BY received_at DESC LIMIT {}", max_messages);
-        let response: Vec<Value> = self.client.query(query.as_str()).await.unwrap().take(0).unwrap();
+        let response: Vec<Value> = self.client.query(&query).await.unwrap().take(0).unwrap();
 
         response.iter().map(|val| {
             if let Value::Object(obj) = val {
                 ChatMessage {
-                    id: Uuid::parse_str(obj.get("id").unwrap().to_string().trim_matches('"')).unwrap(),
-                    message: obj.get("message").unwrap().to_string().trim_matches('"').to_string(),
-                    received_at: NaiveDateTime::parse_from_str(&obj.get("received_at").unwrap().to_string().trim_matches('"'), "%Y-%m-%d %H:%M:%S").unwrap(),
-                    amount: obj.get("amount").unwrap().to_string().parse().unwrap(),
-                    currency: obj.get("currency").unwrap().to_string().trim_matches('"').to_string(),
+                    id: Uuid::parse_str(obj.get("id").unwrap().as_str().unwrap()).unwrap(),
+                    message: obj.get("message").unwrap().as_str().unwrap().to_string(),
+                    received_at: NaiveDateTime::parse_from_str(obj.get("received_at").unwrap().as_str().unwrap(), "%Y-%m-%d %H:%M:%S").unwrap(),
+                    amount: obj.get("amount").unwrap().as_f64().unwrap(),
+                    currency: obj.get("currency").unwrap().as_str().unwrap().to_string(),
+                    platform: obj.get("platform").unwrap().as_str().unwrap().to_string(),
+                    emojis: obj.get("emojis").unwrap().as_array().unwrap().iter().map(|e| {
+                        let e = e.as_array().unwrap();
+                        (
+                            e[0].as_str().unwrap().to_string(),
+                            e[1].as_str().unwrap().to_string(),
+                            e[2].as_str().unwrap().to_string()
+                        )
+                    }).collect(),
+                    sent_at: obj.get("sent_at").unwrap().as_i64().unwrap(),
+                    username: obj.get("username").unwrap().as_str().unwrap().to_string(),
+                    avatar: obj.get("avatar").unwrap().as_str().unwrap().to_string(),
+                    is_verified: obj.get("is_verified").unwrap().as_bool().unwrap(),
+                    is_sub: obj.get("is_sub").unwrap().as_bool().unwrap(),
+                    is_mod: obj.get("is_mod").unwrap().as_bool().unwrap(),
+                    is_owner: obj.get("is_owner").unwrap().as_bool().unwrap(),
+                    is_staff: obj.get("is_staff").unwrap().as_bool().unwrap(),
                 }
             } else {
                 panic!("Unexpected value type")
             }
         }).collect()
     }
+
         
 }
 
@@ -82,11 +102,3 @@ pub struct NewUser {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ChatMessage {
-    pub id: Uuid,
-    pub message: String,
-    pub received_at: NaiveDateTime,
-    pub amount: f64,
-    pub currency: String,
-}
